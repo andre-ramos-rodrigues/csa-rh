@@ -22,6 +22,7 @@ if (process.env.NODE_ENV !== 'production') {
 
 sqliteDb.pragma('journal_mode = WAL');
 sqliteDb.pragma('foreign_keys = ON');
+sqliteDb.pragma('busy_timeout = 5000');
 
 // Adiciona uma coluna a uma tabela existente, apenas se ela ainda não existir
 function ensureColumn(table: string, column: string, definition: string) {
