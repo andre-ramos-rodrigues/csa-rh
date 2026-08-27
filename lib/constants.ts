@@ -7,7 +7,7 @@ export const FULL_ACCESS_USERS = [
 ];
 
 export const RH_USERS = [
-//  'andre.rodrigues',
+  'andre.rodrigues',
   'joana.oliveira',
   'fernanda.santopietro',
   'matheus.joaquim',

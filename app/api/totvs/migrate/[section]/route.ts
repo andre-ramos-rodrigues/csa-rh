@@ -38,12 +38,10 @@ function parseDateToIso(dateStr: any): string | null {
   const str = String(dateStr).trim();
   if (!str) return null;
 
-  // Se já estiver em formato ISO YYYY-MM-DD...
   if (/^\d{4}-\d{2}-\d{2}/.test(str)) {
     return str.substring(0, 10);
   }
 
-  // Se estiver no formato brasileiro DD/MM/YYYY...
   if (/^\d{2}\/\d{2}\/\d{4}$/.test(str)) {
     const [day, month, year] = str.split('/');
     return `${year}-${month}-${day}`;
@@ -330,56 +328,69 @@ export async function POST(
     // -------------------------------------------------------------------------
     // 3 e 4. EXECUÇÃO VIA REST API (PATCH) - APENAS SE NÃO FOR DEPENDENTE OU FORMAÇÃO ACADÊMICA
     // -------------------------------------------------------------------------
-    if (!isDependentesSection && !isFormacaoSection) {
-      const headers: Record<string, string> = {
-        'Content-Type': 'application/json',
-        'Accept': 'application/json',
-      };
+   if (!isDependentesSection && !isFormacaoSection) {
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+    'Accept': 'application/json',
+  };
 
-      if (userPayload?.totvsBasic) {
-        headers['Authorization'] = `Basic ${userPayload.totvsBasic}`;
-      } else if (userPayload?.totvsToken) {
-        headers['Authorization'] = `Bearer ${userPayload.totvsToken}`;
-      } else {
-        const envUser = process.env.TOTVS_USER || process.env.RM_USER || '';
-        const envPass = process.env.TOTVS_PASS || process.env.TOTVS_PASSWORD || process.env.RM_PASS || '';
+  // 1. OBRIGATÓRIO PARA A API REST: Monta a autenticação Basic / Bearer
+  if (userPayload?.totvsBasic) {
+    headers['Authorization'] = `Basic ${userPayload.totvsBasic}`;
+  } else if (userPayload?.totvsToken) {
+    headers['Authorization'] = `Bearer ${userPayload.totvsToken}`;
+  } else {
+    const envUser = process.env.TOTVS_USER || process.env.RM_USER || '';
+    const envPass = process.env.TOTVS_PASS || process.env.TOTVS_PASSWORD || process.env.RM_PASS || '';
 
-        if (envUser && envPass) {
-          const basicAuth = Buffer.from(`${envUser}:${envPass}`).toString('base64');
-          headers['Authorization'] = `Basic ${basicAuth}`;
-        }
-      }
-
-      const patchBody = mapPayloadToTotvsSchema(payload);
-      const hasRestFields = Object.keys(patchBody).length > 0;
-
-      if (hasRestFields && headers['Authorization']) {
-        try {
-          const totvsUrl = getProfileUrl(CODPESSOA);
-          console.log(`📡 [TOTVS MIGRATE] TENTANDO PATCH REST API: ${totvsUrl}`);
-
-          const response = await fetch(totvsUrl, {
-            method: 'PATCH',
-            headers,
-            body: JSON.stringify(patchBody),
-            cache: 'no-store',
-          });
-
-          if (response.ok) {
-            console.log(`✅ [TOTVS MIGRATE] Atualizado com sucesso via REST API.`);
-            updateSuccess = true;
-          } else {
-            patchErrorMessage = await response.text();
-            console.warn(`❌ [TOTVS MIGRATE] REST API rejeitou com HTTP ${response.status}: ${patchErrorMessage}`);
-          }
-        } catch (patchErr: any) {
-          patchErrorMessage = patchErr.message || String(patchErr);
-          console.warn(`⚠️ [TOTVS MIGRATE] Erro na requisição HTTP PATCH:`, patchErrorMessage);
-        }
-      } else {
-        console.warn(`⚠️ [TOTVS MIGRATE] Cabeçalhos de Autorização ausentes ou sem campos para o PATCH.`);
-      }
+    if (envUser && envPass) {
+      headers['Authorization'] = `Basic ${Buffer.from(`${envUser}:${envPass}`).toString('base64')}`;
     }
+  }
+
+  // 2. COMPLEMENTAR: Anexa cookies de sessão caso existam no navegador
+  const aspxAuth = request.cookies.get('rm_aspxauth')?.value;
+  const corporePrincipal = request.cookies.get('rm_corporeprincipal')?.value;
+  const cookieParts: string[] = [];
+  
+  if (aspxAuth) cookieParts.push(`.ASPXAUTH=${aspxAuth}`);
+  if (corporePrincipal) cookieParts.push(`CorporeRM=${corporePrincipal}`);
+
+  if (cookieParts.length > 0) {
+    headers['Cookie'] = cookieParts.join('; ');
+  }
+
+  const patchBody = mapPayloadToTotvsSchema(payload);
+  const hasRestFields = Object.keys(patchBody).length > 0;
+
+  if (hasRestFields && headers['Authorization']) {
+    try {
+      const totvsUrl = getProfileUrl(CODPESSOA);
+      console.log(`📡 [TOTVS MIGRATE] TENTANDO PATCH REST API: ${totvsUrl}`);
+      console.log(`📦 [TOTVS MIGRATE] Payload enviado:`, JSON.stringify(patchBody));
+
+      const response = await fetch(totvsUrl, {
+        method: 'PATCH',
+        headers,
+        body: JSON.stringify(patchBody),
+        cache: 'no-store',
+      });
+
+      if (response.ok) {
+        console.log(`✅ [TOTVS MIGRATE] Atualizado com sucesso via REST API.`);
+        updateSuccess = true;
+      } else {
+        patchErrorMessage = await response.text();
+        console.warn(`❌ [TOTVS MIGRATE] REST API rejeitou com HTTP ${response.status}: ${patchErrorMessage}`);
+      }
+    } catch (patchErr: any) {
+      patchErrorMessage = patchErr.message || String(patchErr);
+      console.warn(`⚠️ [TOTVS MIGRATE] Erro na requisição HTTP PATCH:`, patchErrorMessage);
+    }
+  } else {
+    console.warn(`⚠️ [TOTVS MIGRATE] Credenciais de Authorization ausentes ou sem campos para o PATCH.`);
+  }
+}
 
     // -------------------------------------------------------------------------
     // 5. ESCRITA DIRETA VIA SQL SERVER - DEPENDENTES (NOVOS E ANTIGOS)
@@ -474,27 +485,22 @@ export async function POST(
         console.warn(`❌ [TOTVS MIGRATE] ${patchErrorMessage}`);
       } else {
         try {
-          // Garante parse se o payload vier como String JSON
           const parsedPayload = typeof payload === 'string' ? JSON.parse(payload) : (payload || {});
 
-          // Extração segura dos códigos
           const codCurso = parsedPayload?.CODCURSO ? Number(parsedPayload.CODCURSO) : (parsedPayload?.codCurso ? Number(parsedPayload.codCurso) : null);
           const codEntidade = parsedPayload?.CODENTIDADE ? Number(parsedPayload.CODENTIDADE) : (parsedPayload?.codEntidade ? Number(parsedPayload.codEntidade) : null);
           const codGrau = parsedPayload?.CODGRAU ?? parsedPayload?.codGrau ?? parsedPayload?.grauInstrucao ?? null;
 
-          // Se tiver código cadastrado, deixa o campo livre como NULL
           const outroCurso = codCurso ? null : cleanValue(parsedPayload?.OUTROCURSO ?? parsedPayload?.outroCurso ?? parsedPayload?.CURSO_NOME);
           const nomeEntidade = codEntidade ? null : cleanValue(parsedPayload?.NOMEENTIDADE ?? parsedPayload?.nomeEntidade ?? parsedPayload?.ENTIDADE_NOMEFANTASIA);
 
-          // Tratamento de datas (evita 1900-01-01)
           const dtInicio = parseDateToIso(parsedPayload?.DATAINICIO ?? parsedPayload?.dtInicio ?? parsedPayload?.DTINICIO);
           const dtTermino = parseDateToIso(parsedPayload?.DATATERMINO ?? parsedPayload?.dtTermino ?? parsedPayload?.DTTERMINO);
 
-          // De-Para do campo SITUACAO para ANDAMENTO
           let andamentoVal = parsedPayload?.ANDAMENTO ?? parsedPayload?.andamento;
           if (andamentoVal === undefined || andamentoVal === null || String(andamentoVal).trim() === '') {
-          andamentoVal = 'C';
-            }
+            andamentoVal = 'C';
+          }
           
           const rowsAffected = await insertCurso({
             codPessoa: Number(CODPESSOA),
