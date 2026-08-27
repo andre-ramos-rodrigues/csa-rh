@@ -1,0 +1,22 @@
+version: '3.8'
+
+services:
+  # Next.js Web App Service (Dev Mode with Live Reload)
+  web-app:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    container_name: totvs-rh-app-dev
+    restart: always
+    ports:
+      - "3000:3000"
+    # Load variables directly from .env file
+    env_file:
+      - .env
+    environment:
+      - NODE_ENV=development
+    volumes:
+      # Mount codebase for live hot-reloading in dev mode
+      - .:/app
+      - /app/node_modules
+      - /app/.next

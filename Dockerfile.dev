@@ -1,0 +1,21 @@
+FROM node:20-alpine
+
+# Install build essentials for native modules (like better-sqlite3)
+RUN apk add --no-cache python3 make g++ gcc sqlite-dev
+
+WORKDIR /app
+
+# Copy package definition files
+COPY package.json package-lock.json* ./
+
+# Install all dependencies including devDependencies
+RUN npm install
+
+# Expose Next.js dev server port
+EXPOSE 3000
+
+ENV PORT=3000
+ENV NODE_ENV=development
+
+# Start Next.js dev server with hot reload
+CMD ["npm", "run", "dev"]
