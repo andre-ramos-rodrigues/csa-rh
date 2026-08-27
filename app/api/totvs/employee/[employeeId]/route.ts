@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { jwtVerify } from 'jose';
-import { totvsPool, totvsPoolConnect } from '@/lib/db-totvs';
+import { totvsPool, getTotvsConnection } from '@/lib/db-totvs';
 
 const JWT_SECRET = new TextEncoder().encode(
   process.env.JWT_SECRET || 'sua-chave-secreta-super-segura-totvs-12345'
@@ -133,7 +133,7 @@ export async function GET(
     const formattedCpf = formatCpf(cleanCpf);
 
     // 5. Consultas complementares no SQL (Dependentes, Formação Acadêmica e Informações de Equipe)
-    await totvsPoolConnect;
+    await getTotvsConnection();
     const req = totvsPool.request();
     req.input('cleanCpf', cleanCpf);
     req.input('formattedCpf', formattedCpf);

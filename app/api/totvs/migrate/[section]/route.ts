@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { jwtVerify } from 'jose';
-import { totvsPool, totvsPoolConnect } from '@/lib/db-totvs';
+import { totvsPool, getTotvsConnection } from '@/lib/db-totvs';
 import { sqliteDb, initAppDb } from '@/lib/db-app';
 import { RH_USERS, FULL_ACCESS_USERS, checkIsRhUser } from '@/lib/constants';
 import { updateDependente } from '@/lib/rm/updateDependente';
@@ -54,7 +54,7 @@ function parseDateToIso(dateStr: any): string | null {
 
 /** Função para inserção direta de novo dependente na PFDEPEND */
 export async function insertDependente(params: InsertDependenteParams): Promise<number> {
-  await totvsPoolConnect;
+  await getTotvsConnection();
   const req = totvsPool.request();
 
   req.input('codColigada', params.codColigada);
@@ -272,7 +272,7 @@ export async function POST(
     // -------------------------------------------------------------------------
     // 2. CONSULTA SQL PARA IDENTIFICAR CODPESSOA, CHAPA E CODCOLIGADA
     // -------------------------------------------------------------------------
-    await totvsPoolConnect;
+    await getTotvsConnection();
     const req = totvsPool.request();
     req.input('cleanCpf', cleanCpf);
     req.input('formattedCpf', formattedCpf);

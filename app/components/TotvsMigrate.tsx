@@ -78,7 +78,7 @@ export default function TotvsMigrate({
   const [checkingAuth, setCheckingAuth] = useState(true);
   const [isAuthorized, setIsAuthorized] = useState(false);
   const [feedback, setFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
-
+  
   useEffect(() => {
     async function checkUserPermission() {
       try {

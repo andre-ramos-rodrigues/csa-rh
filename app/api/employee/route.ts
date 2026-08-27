@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { totvsPool, totvsPoolConnect } from '@/lib/db-totvs';
+import { totvsPool, getTotvsConnection } from '@/lib/db-totvs';
 
 export async function GET(request: NextRequest) {
   const start = Date.now();
@@ -29,7 +29,7 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    await totvsPoolConnect;
+    await getTotvsConnection();
     const req = totvsPool.request();
 
     // Versão formatada do CPF para comparação
@@ -66,8 +66,8 @@ export async function GET(request: NextRequest) {
         ON F.CODPESSOA = P.CODIGO
       LEFT JOIN PEQUIPE E 
         ON CAST(E.CODCLIENTE AS VARCHAR(50)) = CAST(F.CODEQUIPE AS VARCHAR(50))
-      JOIN PCODINSTRUCAO CI ON CI.CODCLIENTE = P.GRAUINSTRUCAO
-      JOIN PCODESTCIVIL EC ON EC.CODCLIENTE = P.ESTADOCIVIL
+      LEFT JOIN PCODINSTRUCAO CI ON CI.CODCLIENTE = P.GRAUINSTRUCAO
+      LEFT JOIN PCODESTCIVIL EC ON EC.CODCLIENTE = P.ESTADOCIVIL
       WHERE P.FUNCIONARIO = 1 
         AND F.CODFILIAL = 1
         AND F.CODSITUACAO <> 'D'
@@ -90,7 +90,7 @@ export async function GET(request: NextRequest) {
       FROM PFDEPEND D
       JOIN PFUNC P ON D.CHAPA = P.CHAPA
       JOIN PPESSOA PE ON PE.CODIGO = P.CODPESSOA
-      JOIN PCODPARENT PAR ON PAR.CODCLIENTE = D.GRAUPARENTESCO
+      LEFT JOIN PCODPARENT PAR ON PAR.CODCLIENTE = D.GRAUPARENTESCO
       WHERE (PE.CPF = @cleanCpf OR PE.CPF = @formattedCpf)
     `);
 
@@ -104,9 +104,9 @@ export async function GET(request: NextRequest) {
         V.*
       FROM VFORMACAOACAD V
       JOIN PPESSOA P ON V.CODPESSOA = P.CODIGO
-      JOIN VENTIDADES E ON E.CODENTIDADE = V.CODENTIDADE
-      JOIN VGRAUINSTRUCAO G ON G.CODGRAU = V.CODGRAU
-      JOIN VCURSOACAD A ON A.CODCURSO = V.CODCURSO
+      LEFT JOIN VENTIDADES E ON E.CODENTIDADE = V.CODENTIDADE
+      LEFT JOIN VGRAUINSTRUCAO G ON G.CODGRAU = V.CODGRAU
+      LEFT JOIN VCURSOACAD A ON A.CODCURSO = V.CODCURSO
       WHERE (P.CPF = @cleanCpf OR P.CPF = @formattedCpf)
     `);
 

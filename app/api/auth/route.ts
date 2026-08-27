@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createHash } from 'node:crypto';
 import bcrypt from 'bcryptjs';
 import { SignJWT } from 'jose';
-import { totvsPool, totvsPoolConnect } from '@/lib/db-totvs';
+import { totvsPool, getTotvsConnection } from '@/lib/db-totvs';
 
 const JWT_SECRET = new TextEncoder().encode(
   process.env.JWT_SECRET || 'sua-chave-secreta-super-segura-totvs-12345'
@@ -199,7 +199,7 @@ export async function POST(request: NextRequest) {
     // =========================================================================
     // 🔍 BUSCA DE USUÁRIO NO BANCO TOTVS (MINÚSCULAS PRIMEIRO, DEPOIS MAIÚSCULAS)
     // =========================================================================
-    await totvsPoolConnect;
+    await getTotvsConnection();
 
     // Garante a ordem de tentativa: 1º minúsculas, 2º maiúsculas (remove duplicatas se for numérico)
     const tentativasUsuario = Array.from(

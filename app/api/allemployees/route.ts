@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { totvsPool, totvsPoolConnect } from '@/lib/db-totvs';
+import { totvsPool, getTotvsConnection } from '@/lib/db-totvs';
+
 import { getAuthUser } from '@/lib/auth';
 
 export async function GET(request: NextRequest) {
@@ -33,7 +34,7 @@ export async function GET(request: NextRequest) {
 
   const start = Date.now();
   try {
-    await totvsPoolConnect;
+    await getTotvsConnection();
     const dbRequest = totvsPool.request();
     const queryResult = await dbRequest.query(`
         SELECT DISTINCT E.DESCRICAO, F.CODEQUIPE, P.NOME, P.CPF, P.EMAIL, P.CODIGO

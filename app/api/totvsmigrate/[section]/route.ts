@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { totvsPool, totvsPoolConnect } from '@/lib/db-totvs';
+import { totvsPool, getTotvsConnection } from '@/lib/db-totvs';
 import { sqliteDb, initAppDb } from '@/lib/db-app';
 
 function sanitizeCpf(cpf: string) {
@@ -37,7 +37,7 @@ export async function POST(
 
     console.log('Iniciando migração de: ', formattedCpf, 'payload: ', payload);
 
-    await totvsPoolConnect;
+    await getTotvsConnection();
     const req = totvsPool.request();
 
     req.input('cleanCpf', cleanCpf);

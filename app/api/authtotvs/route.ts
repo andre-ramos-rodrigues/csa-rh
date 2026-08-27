@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { SignJWT } from 'jose';
 import https from 'node:https';
 import { URL } from 'node:url';
-import { totvsPool, totvsPoolConnect } from '@/lib/db-totvs';
+import { totvsPool, getTotvsConnection } from '@/lib/db-totvs';
 
 const JWT_SECRET = new TextEncoder().encode(
   process.env.JWT_SECRET || 'sua-chave-secreta-super-segura-totvs-12345'
@@ -206,7 +206,7 @@ export async function POST(request: NextRequest) {
     // 🔍 ENRIQUECIMENTO DO PERFIL — busca dados no banco só para exibição,
     // NÃO para decidir autenticação (isso já foi decidido pelo RM acima).
     // =========================================================================
-    await totvsPoolConnect;
+    await getTotvsConnection();
 
     const tentativasUsuario = Array.from(new Set([cleanUser.toLowerCase(), cleanUser.toUpperCase()]));
     let dbUser: any = null;
