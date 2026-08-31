@@ -10,7 +10,7 @@ const JWT_SECRET = new TextEncoder().encode(
   process.env.JWT_SECRET || 'sua-chave-secreta-super-segura-totvs-12345'
 );
 
-const RAW_RM_API_BASE = process.env.RM_API_BASE || 'http://portal.csa.com.br:8051/api';
+const RAW_RM_API_BASE = process.env.RM_API_BASE || 'http://portal.csa.com.br:8051';
 
 export interface InsertDependenteParams {
   codColigada: number;

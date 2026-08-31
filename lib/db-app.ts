@@ -49,7 +49,7 @@ export function initAppDb() {
       employee_name TEXT NOT NULL,
       section_key TEXT,
       status TEXT NOT NULL DEFAULT 'pending'
-        CHECK (status IN ('pending', 'approved', 'rejected', 'partially_approved')),
+        CHECK (status IN ('pending', 'approved', 'rejected', 'partially_approved', 'migrated')),
       submitted_at TEXT DEFAULT (datetime('now')),
       updated_at TEXT DEFAULT (datetime('now')),
       reviewed_by TEXT,
@@ -65,7 +65,7 @@ export function initAppDb() {
       old_value TEXT,
       new_value TEXT NOT NULL,
       status TEXT NOT NULL DEFAULT 'pending'
-        CHECK (status IN ('pending', 'approved', 'rejected')),
+        CHECK (status IN ('pending', 'approved', 'rejected', 'migrated')),
       resubmission_count INTEGER NOT NULL DEFAULT 0,
       review_notes TEXT,
       created_at TEXT DEFAULT (datetime('now')),
