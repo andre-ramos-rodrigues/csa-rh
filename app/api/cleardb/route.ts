@@ -1,22 +1,42 @@
 // app/api/cleardb/route.ts
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
+import { getAuthUser } from '@/lib/auth';
 import { sqliteDb } from '@/lib/db-app';
 import { readdir, unlink } from 'fs/promises';
 import path from 'path';
 
 const ATTACHMENTS_DIR = process.env.ATTACHMENTS_DIR || path.join(process.cwd(), 'data', 'attachments');
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
-    // Executa a limpeza dentro de uma transação no banco de dados
+    // 1. Valida se há usuário autenticado na sessão
+    const user = await getAuthUser(request);
+
+    if (!user) {
+      return NextResponse.json(
+        { success: false, error: 'Sessão não encontrada / não autenticado' },
+        { status: 401 }
+      );
+    }
+
+    // 2. Garante acesso exclusivo ao masteruser
+    const currentUsername = String(user.usuario  || '').toLowerCase();
+    if (currentUsername !== 'masteruser') {
+      return NextResponse.json(
+        { success: false, error: 'Acesso negado. Recurso restrito ao administrador principal.' },
+        { status: 403 }
+      );
+    }
+
+    // 3. Executa a limpeza dentro de uma transação no banco de dados
     const clearTransaction = sqliteDb.transaction(() => {
-      // 1. Limpa todas as tabelas relativas a solicitações
+      // Limpa todas as tabelas relativas a solicitações
       sqliteDb.prepare('DELETE FROM change_request_attachments').run();
       sqliteDb.prepare('DELETE FROM change_request_field_history').run();
       sqliteDb.prepare('DELETE FROM change_request_fields').run();
       sqliteDb.prepare('DELETE FROM change_requests').run();
 
-      // 2. Reseta o autoincrement dos IDs (se a tabela sqlite_sequence existir)
+      // Reseta o autoincrement dos IDs (se a tabela sqlite_sequence existir)
       sqliteDb.prepare(`
         DELETE FROM sqlite_sequence 
         WHERE name IN (
@@ -28,9 +48,9 @@ export async function GET() {
       `).run();
     });
 
-    clearTransaction();
+    //clearTransaction();
 
-    // 3. Remove os arquivos fisicamente salvos na pasta de anexos
+    // 4. Remove os arquivos fisicamente salvos na pasta de anexos
     try {
       const files = await readdir(ATTACHMENTS_DIR);
       for (const file of files) {

@@ -1,11 +1,31 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
+import { getAuthUser } from '@/lib/auth';
 import { sqliteDb, initAppDb } from '@/lib/db-app';
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
+    // 1. Valida se há usuário autenticado na sessão
+    const user = await getAuthUser(request);
+
+    if (!user) {
+      return NextResponse.json(
+        { success: false, error: 'Sessão não encontrada / não autenticado' },
+        { status: 401 }
+      );
+    }
+
+    // 2. Garante acesso exclusivo ao masteruser
+    const currentUsername = String(user.usuario || '').toLowerCase();
+    if (currentUsername !== 'masteruser') {
+      return NextResponse.json(
+        { success: false, error: 'Acesso negado. Recurso restrito ao administrador principal.' },
+        { status: 403 }
+      );
+    }
+
     initAppDb();
 
-    // 1. Limpa registros anteriores para evitar duplicatas durante os testes
+    // 3. Limpa registros anteriores para evitar duplicatas durante os testes
     sqliteDb.exec(`
       DELETE FROM change_request_attachments;
       DELETE FROM change_request_field_history;
@@ -16,7 +36,7 @@ export async function GET() {
     const cpfAndre = '14182829794';
     const nomeAndre = 'ANDRÉ AUGUSTO RAMOS RODRIGUES';
 
-    // 2. Cria a solicitação principal para o Andre
+    // 4. Cria a solicitação principal para o Andre
     const insertReq = sqliteDb.prepare(`
       INSERT INTO change_requests (employee_cpf, employee_name, status)
       VALUES (?, ?, 'pending')
@@ -24,19 +44,19 @@ export async function GET() {
 
     const requestId = insertReq.lastInsertRowid;
 
-    // 3. Insere a alteração de endereço (Rua)
+    // 5. Insere a alteração de endereço (Rua)
     sqliteDb.prepare(`
       INSERT INTO change_request_fields (change_request_id, field_name, old_value, new_value, status)
       VALUES (?, ?, ?, ?, 'pending')
     `).run(requestId, 'RUA', 'Rua Voluntários da Pátria, 100', 'Praia de Botafogo');
 
-    // 4. Insere a alteração de escolaridade
+    // 6. Insere a alteração de escolaridade
     sqliteDb.prepare(`
       INSERT INTO change_request_fields (change_request_id, field_name, old_value, new_value, status)
       VALUES (?, ?, ?, ?, 'pending')
     `).run(requestId, 'ESCOLARIDADE', 'Ensino Superior Incompleto', 'Graduação Completa');
 
-    // 5. Insere o documento fake em PDF anexado (Diploma / Comprovante)
+    // 7. Insere o documento fake em PDF anexado (Diploma / Comprovante)
     sqliteDb.prepare(`
       INSERT INTO change_request_attachments (
         change_request_id,
