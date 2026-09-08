@@ -648,6 +648,16 @@ const handleFormacaoSelectChange = (
   const modifiedFields = getModifiedFields();
   const hasChanges = modifiedFields.length > 0 || attachments.length > 0;
 
+  // 🔎 Indica se cada seção teve seu valor de fato alterado em relação ao
+  // original vindo do TOTVS — usado como segunda condição (além de "está em
+  // edição") para liberar o botão de anexo daquela seção.
+  const identificacaoChanged = modifiedFields.some((f) => f.field === 'NOME');
+  const estadoCivilChanged = modifiedFields.some((f) => f.field === 'ESTADOCIVIL');
+  const escolaridadeChanged = modifiedFields.some((f) => f.field === 'GRAUINSTRUCAO');
+  const enderecoChanged = modifiedFields.some((f) =>
+    ['RUA', 'NUMERO', 'COMPLEMENTO', 'BAIRRO', 'CEP', 'CIDADE', 'ESTADO'].includes(f.field)
+  );
+
   // 🔒 VALIDAÇÕES ANTES DE ABRIR O MODAL DE REVISÃO
   const handleOpenReview = () => {
     if (!hasChanges) {
@@ -1105,11 +1115,18 @@ const renderModalItem = (
     )}
 
     <div className="pt-3 border-t border-slate-200 flex items-center justify-between">
-      <label className="cursor-pointer inline-flex items-center gap-2 px-3 py-1.5 bg-white hover:bg-slate-100 border border-slate-300 rounded-lg text-xs text-cyan-700 transition font-medium shadow-sm">
+      <label
+        className={`inline-flex items-center gap-2 px-3 py-1.5 border rounded-lg text-xs font-medium shadow-sm transition ${
+          editingSections.identificacao && identificacaoChanged
+            ? 'cursor-pointer bg-white hover:bg-slate-100 border-slate-300 text-cyan-700'
+            : 'cursor-not-allowed bg-slate-100 border-slate-200 text-slate-400 opacity-60 pointer-events-none'
+        }`}
+      >
         📎 Anexar Comprovante de Identificação (RG/CNH) <span className="text-rose-600 font-bold">*</span>
         <input
           type="file"
           multiple
+          disabled={!(editingSections.identificacao && identificacaoChanged)}
           className="hidden"
           onChange={(e) => handleAddFiles(e, 'identificacao')}
         />
@@ -1157,11 +1174,18 @@ const renderModalItem = (
     )}
 
     <div className="pt-3 border-t border-slate-200 flex items-center justify-between">
-      <label className="cursor-pointer inline-flex items-center gap-2 px-3 py-1.5 bg-white hover:bg-slate-100 border border-slate-300 rounded-lg text-xs text-cyan-700 transition font-medium shadow-sm">
+      <label
+        className={`inline-flex items-center gap-2 px-3 py-1.5 border rounded-lg text-xs font-medium shadow-sm transition ${
+          editingSections.estadoCivil && estadoCivilChanged
+            ? 'cursor-pointer bg-white hover:bg-slate-100 border-slate-300 text-cyan-700'
+            : 'cursor-not-allowed bg-slate-100 border-slate-200 text-slate-400 opacity-60 pointer-events-none'
+        }`}
+      >
         📎 Anexar Certidão (Casamento/Divórcio/União Estável) <span className="text-rose-600 font-bold">*</span>
         <input
           type="file"
           multiple
+          disabled={!(editingSections.estadoCivil && estadoCivilChanged)}
           className="hidden"
           onChange={(e) => handleAddFiles(e, 'estado_civil')}
         />
@@ -1429,11 +1453,18 @@ const renderModalItem = (
 </div>
 
   <div className="pt-3 border-t border-slate-200/80 flex items-center justify-between">
-    <label className="cursor-pointer inline-flex items-center gap-2 px-3 py-1.5 bg-white hover:bg-slate-100 border border-slate-200 rounded-lg text-xs text-cyan-700 transition font-medium shadow-sm">
+    <label
+      className={`inline-flex items-center gap-2 px-3 py-1.5 border rounded-lg text-xs font-medium shadow-sm transition ${
+        editingSections.escolaridade && escolaridadeChanged
+          ? 'cursor-pointer bg-white hover:bg-slate-100 border-slate-200 text-cyan-700'
+          : 'cursor-not-allowed bg-slate-100 border-slate-200 text-slate-400 opacity-60 pointer-events-none'
+      }`}
+    >
       📎 Anexar Certificado / Diploma
       <input
         type="file"
         multiple
+        disabled={!(editingSections.escolaridade && escolaridadeChanged)}
         className="hidden"
         onChange={(e) => handleAddFiles(e, 'escolaridade')}
       />
@@ -1558,11 +1589,18 @@ const renderModalItem = (
     )}
 
     <div className="pt-3 border-t border-slate-200 flex items-center justify-between">
-      <label className="cursor-pointer inline-flex items-center gap-2 px-3 py-1.5 bg-white hover:bg-slate-100 border border-slate-300 rounded-lg text-xs text-cyan-700 transition font-medium shadow-sm">
+      <label
+        className={`inline-flex items-center gap-2 px-3 py-1.5 border rounded-lg text-xs font-medium shadow-sm transition ${
+          editingSections.endereco
+            ? 'cursor-pointer bg-white hover:bg-slate-100 border-slate-300 text-cyan-700'
+            : 'cursor-not-allowed bg-slate-100 border-slate-200 text-slate-400 opacity-60 pointer-events-none'
+        }`}
+      >
         📎 Anexar Comprovante de Residência <span className="text-rose-600 font-bold">*</span>
         <input
           type="file"
           multiple
+          disabled={!editingSections.endereco}
           className="hidden"
           onChange={(e) => handleAddFiles(e, 'endereco')}
         />

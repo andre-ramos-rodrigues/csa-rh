@@ -48,7 +48,7 @@ export async function GET(request: NextRequest) {
       `).run();
     });
 
-    //clearTransaction();
+    clearTransaction();
 
     // 4. Remove os arquivos fisicamente salvos na pasta de anexos
     try {

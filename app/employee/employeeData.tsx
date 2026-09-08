@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+//import { useRouter } from 'next/navigation'; // Certifique-se de importar se for usar router.refresh()
 import TotvsMigrate from '../components/TotvsMigrate';
 import Image from 'next/image';
 
@@ -235,9 +236,11 @@ export default function EmployeeData({
   const [, setRejectedFieldIds] = useState<number[]>([]);
   const [isHistoryModalOpen, setIsHistoryModalOpen] = useState(false);
   const emailList = parseEmails(employee.EMAIL);
+  const [isProcessingCatalog, setIsProcessingCatalog] = useState<string | null>(null);
 
   let requestsList: ChangeRequest[] = [];
   let allFields: ChangeField[] = [];
+  //const router = useRouter(); // ← novo: hook do Next.js para navegação e refresh
 
   if (changeRequest) {
     const rawData = changeRequest?.data || changeRequest;
@@ -569,7 +572,7 @@ export default function EmployeeData({
     }
   };
 
-  function renderFormattedValue(value: string, fieldName: string) {
+  function renderFormattedValue(value: string, fieldName: string, fieldId?: number | string) {
     if (!value || value.trim() === '' || value === '(Vazio)' || value === 'Nenhum' || value === '(Nenhum)') {
       return <span className="text-xs text-slate-400 italic">(Nenhum registrado)</span>;
     }
@@ -592,31 +595,97 @@ export default function EmployeeData({
 
         if (fieldName === 'FORMACAO_ACADEMICA' || parsed[0]?.CURSO_NOME) {
           return (
-            <div className="space-y-2 mt-1">
-              {parsed.map((item: any, idx: number) => (
-                <div
-                  key={idx}
-                  className="p-2.5 bg-white border border-slate-200 rounded-lg shadow-2xs space-y-0.5 text-xs"
-                >
-                  <div className="flex items-center justify-between">
-                    <span className="font-bold text-cyan-800">
-                      🎓 {item.CURSO_NOME || 'Curso não informado'}
-                    </span>
-                    {item.SITUACAO && (
-                      <span className="px-1.5 py-0.5 bg-cyan-50 border border-cyan-200 text-cyan-700 text-[10px] font-semibold rounded">
-                        {item.SITUACAO}
-                      </span>
-                    )}
-                  </div>
-                  <p className="text-slate-600 font-medium">
-                    🏢 {item.ENTIDADE_NOMEFANTASIA || 'Instituição não informada'}
-                  </p>
-                  <p className="text-[11px] text-slate-500">
-                    Grau: {item.GRAUINSTRUCAO_DESC || 'Não informado'}
-                  </p>
-                </div>
-              ))}
+            <div className="space-y-2.5 mt-2">
+  {parsed.map((item: any, idx: number) => {
+    const isMissingData = !item.CODCURSO || !item.CODENTIDADE;
+
+    return (
+      <div
+        key={fieldId || idx}
+        className="p-3 bg-white border border-slate-200/80 rounded-xl shadow-xs space-y-2 text-xs transition-all hover:border-slate-300"
+      >
+        {/* Banner de alerta para dados não cadastrados no TOTVS */}
+        {isMissingData && (
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 p-2.5 bg-amber-50/80 border border-amber-200/80 rounded-lg text-amber-900">
+            <div className="flex items-center gap-1.5 flex-wrap">
+              <span className="text-[11px] font-bold text-amber-800 flex items-center gap-1">
+                ⚠️ Pendente no TOTVS:
+              </span>
+              <div className="flex items-center gap-1.5">
+                {!item.CODCURSO && (
+                  <span className="px-2 py-0.5 bg-amber-100 text-amber-800 border border-amber-300/70 text-[10px] font-bold rounded-md">
+                    Curso
+                  </span>
+                )}
+                {!item.CODENTIDADE && (
+                  <span className="px-2 py-0.5 bg-amber-100 text-amber-800 border border-amber-300/70 text-[10px] font-bold rounded-md">
+                    Entidade
+                  </span>
+                )}
+              </div>
             </div>
+
+            {/* Ações de Cadastro Dinâmicas */}
+            <div className="flex items-center gap-2 self-end sm:self-auto">
+              {!item.CODCURSO && (
+                <button
+                  type="button"
+                  disabled={isProcessingCatalog !== null}
+                  onClick={() => handleCreateCatalog('curso', item.CURSO_NOME, fieldId!, idx)}
+                  className="inline-flex items-center justify-center gap-1.5 px-3 py-1 bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white text-[11px] font-bold rounded-md transition-all shadow-xs cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M12 4v16m8-8H4" />
+                  </svg>
+                  <span>
+                    {isProcessingCatalog === `${idx}-curso` ? 'Cadastrando...' : 'Cadastrar Curso'}
+                  </span>
+                </button>
+              )}
+
+              {!item.CODENTIDADE && (
+                <button
+                  type="button"
+                  disabled={isProcessingCatalog !== null}
+                  onClick={() => handleCreateCatalog('entidade', item.ENTIDADE_NOMEFANTASIA, fieldId!, idx)}
+                  className="inline-flex items-center justify-center gap-1.5 px-3 py-1 bg-teal-600 hover:bg-teal-700 active:scale-95 text-white text-[11px] font-bold rounded-md transition-all shadow-xs cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M12 4v16m8-8H4" />
+                  </svg>
+                  <span>
+                    {isProcessingCatalog === `${idx}-entidade` ? 'Cadastrando...' : 'Cadastrar Entidade'}
+                  </span>
+                </button>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Informações do curso */}
+        <div className="flex items-center justify-between gap-2">
+          <span className="font-bold text-cyan-900 text-sm flex items-center gap-1.5">
+            🎓 {item.CURSO_NOME || 'Curso não informado'}
+          </span>
+          {item.SITUACAO && (
+            <span className="px-2 py-0.5 bg-cyan-50 border border-cyan-200 text-cyan-700 text-[10px] font-bold rounded-md shrink-0">
+              {item.SITUACAO}
+            </span>
+          )}
+        </div>
+
+        <div className="space-y-0.5 text-slate-600 font-medium">
+          <p className="flex items-center gap-1.5">
+            🏢 {item.ENTIDADE_NOMEFANTASIA || 'Instituição não informada'}
+          </p>
+          <p className="text-[11px] text-slate-500">
+            Grau: <span className="font-semibold text-slate-700">{item.GRAUINSTRUCAO_DESC || 'Não informado'}</span>
+          </p>
+        </div>
+      </div>
+    );
+  })}
+</div>
           );
         }
 
@@ -729,6 +798,49 @@ export default function EmployeeData({
     }
   };
 
+  const handleCreateCatalog = async (
+  type: 'curso' | 'entidade',
+  nome: string,
+  fieldId: number | string,
+  idx: number
+) => {
+  if (!nome) {
+    alert(`Nome do(a) ${type} não foi encontrado.`);
+    return;
+  }
+
+  const actionKey = `${idx}-${type}`;
+  setIsProcessingCatalog(actionKey);
+
+  try {
+    const response = await fetch('/api/totvs/academic', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        type,
+        nome,
+        fieldId,
+      }),
+    });
+
+    const data = await response.json();
+
+    if (!response.ok || !data.success) {
+      throw new Error(data.error || 'Falha ao processar solicitação.');
+    }
+
+    console.log('🔍 [DEBUG API RESPONSE]:', data);
+    alert(
+      `[CADASTRO OK] ${type === 'curso' ? 'Curso' : 'Entidade'} "${nome}" testado com sucesso!\nCódigo Gerada: ${data.newCode}`
+    );
+
+    // Recarregue os dados da tela se houver função de refresh prop
+      window.location.reload()
+  } finally {
+    setIsProcessingCatalog(null);
+  }
+};
+
   const handleApproveSectionFieldsApi = async (
     fields: ChangeField[],
     sectionLabel: string
@@ -791,7 +903,7 @@ export default function EmployeeData({
         <span className="px-2 py-0.5 rounded bg-amber-100 border border-amber-300 text-amber-800 text-[10px] font-bold uppercase">
           Alteração Solicitada ({pendingInSection.length})
         </span>
-        {pendingInSection.length > 1 && (
+        {/*pendingInSection.length > 1 && (
           <div className="flex items-center gap-1.5 ml-1">
             <button
               type="button"
@@ -810,152 +922,199 @@ export default function EmployeeData({
               {processingId === -1 ? 'Processando...' : 'NEGAR TODOS'}
             </button>
           </div>
-        )}
+        )*/}
       </div>
     );
   };
 
 const renderFieldChangeBadge = (field: ChangeField) => {
-    if (!isPendingStatus(field.status)) {
-      return null;
+  if (!isPendingStatus(field.status)) {
+    return null;
+  }
+
+  const fieldId = getSafeFieldId(field);
+  const isProcessing = processingId === fieldId;
+
+  // 1. Validação de Formação Acadêmica (Curso/Entidade não cadastrados)
+  const fieldNameUpper = (field.field_name || '').toUpperCase();
+  const isAcademicField =
+    fieldNameUpper.includes('FORMACAO') ||
+    fieldNameUpper.includes('ACADEMICA') ||
+    fieldNameUpper.includes('ESCOLARIDADE');
+
+  let hasUnregisteredAcademicData = false;
+
+  if (isAcademicField) {
+    try {
+      const parsed = field.new_value ? JSON.parse(field.new_value) : null;
+      const items = Array.isArray(parsed) ? parsed : parsed ? [parsed] : [];
+
+      hasUnregisteredAcademicData = items.some(
+        (item: any) =>
+          typeof item === 'object' &&
+          item !== null &&
+          (!item.CODCURSO || !item.CODENTIDADE)
+      );
+    } catch {
+      // Caso não seja um JSON estruturado, mantém o fluxo normal
+    }
+  }
+
+  // 👨‍👩‍👧‍👦 Card individual para Dependente desacoplado
+  if (
+    field.field_name === 'DEPENDENTES' ||
+    fieldNameUpper.includes('DEPENDENTE')
+  ) {
+    let item: any = null;
+    try {
+      const parsed = field.new_value ? JSON.parse(field.new_value) : null;
+      item = Array.isArray(parsed) ? parsed[0] : parsed;
+    } catch {
+      item = null;
     }
 
-    const fieldId = getSafeFieldId(field);
-    const isProcessing = processingId === fieldId;
+    if (item && typeof item === 'object') {
+      const rawIrrf =
+        item.INCIRRF ?? item.incirrf ?? item.INCIDE_IRPF ?? item.incide_irpf ?? item.IRPF ?? item.irpf;
+      const isIrrfSim =
+        rawIrrf === 1 || rawIrrf === '1' || rawIrrf === true || String(rawIrrf).toLowerCase() === 'sim';
 
-    // 👨‍👩‍👧‍👦 Card individual para Dependente desacoplado
-    if (
-      field.field_name === 'DEPENDENTES' ||
-      field.field_name.toUpperCase().includes('DEPENDENTE')
-    ) {
-      let item: any = null;
-      try {
-        const parsed = field.new_value ? JSON.parse(field.new_value) : null;
-        item = Array.isArray(parsed) ? parsed[0] : parsed;
-      } catch {
-        item = null;
-      }
-
-      if (item && typeof item === 'object') {
-        const rawIrrf =
-          item.INCIRRF ?? item.incirrf ?? item.INCIDE_IRPF ?? item.incide_irpf ?? item.IRPF ?? item.irpf;
-        const isIrrfSim =
-          rawIrrf === 1 || rawIrrf === '1' || rawIrrf === true || String(rawIrrf).toLowerCase() === 'sim';
-
-        return (
-          <div
-            key={field.id}
-            className="p-4 bg-amber-50/60 border border-amber-200 rounded-xl space-y-3 shadow-2xs"
-          >
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-amber-200/80 pb-2">
-              <div className="flex items-center gap-2">
-                <span className="text-xs font-bold text-slate-800">
-                  👤 {getDependentName(item.NOME || item.nome)}
-                </span>
-                <span
-                  className={`px-2 py-0.5 rounded-md text-[10px] font-bold border ${
-                    isIrrfSim
-                      ? 'bg-emerald-50 text-emerald-800 border-emerald-300'
-                      : 'bg-slate-100 text-slate-600 border-slate-200'
-                  }`}
-                >
-                  INCIDE IRPF: {isIrrfSim ? 'SIM' : 'NÃO'}
-                </span>
-                <span className='px-2 py-0.5 rounded-md text-[10px] font-bold border bg-slate-100 text-slate-600 border-slate-20 '>
-                  {item?.target_id === 'NEW' ? 'Novo' : 'Antigo'}
-                </span>
-              </div>
-
-              <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  disabled={processingId !== null}
-                  onClick={() => handleApproveFieldApi(field)}
-                  className="px-3 py-1 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-lg transition shadow-2xs cursor-pointer disabled:opacity-50"
-                >
-                  {isProcessing ? '...' : 'APROVAR ESTE'}
-                </button>
-                <button
-                  type="button"
-                  disabled={processingId !== null}
-                  onClick={() => handleDenyFieldApi(field)}
-                  className="px-3 py-1 bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold rounded-lg transition shadow-2xs cursor-pointer disabled:opacity-50"
-                >
-                  {isProcessing ? '...' : 'NEGAR ESTE'}
-                </button>
-              </div>
+      return (
+        <div
+          key={field.id}
+          className="p-4 bg-amber-50/60 border border-amber-200 rounded-xl space-y-3 shadow-2xs"
+        >
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-amber-200/80 pb-2">
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-bold text-slate-800">
+                👤 {getDependentName(item.NOME || item.nome)}
+              </span>
+              <span
+                className={`px-2 py-0.5 rounded-md text-[10px] font-bold border ${
+                  isIrrfSim
+                    ? 'bg-emerald-50 text-emerald-800 border-emerald-300'
+                    : 'bg-slate-100 text-slate-600 border-slate-200'
+                }`}
+              >
+                INCIDE IRPF: {isIrrfSim ? 'SIM' : 'NÃO'}
+              </span>
+              <span className="px-2 py-0.5 rounded-md text-[10px] font-bold border bg-slate-100 text-slate-600 border-slate-200">
+                {item?.target_id === 'NEW' ? 'Novo' : 'Antigo'}
+              </span>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs text-slate-600">
-              <p>
-                Parentesco: <strong>{item.GRAUPARENTESCODESC || item.grau_parentesco || '--'}</strong>
-              </p>
-              <p>
-                CPF: <strong className="font-mono">{formatCpf(item.CPF || item.cpf)}</strong>
-              </p>
-              {item.DTNASCIMENTO && (
-                <p>
-                  Nascimento:{' '}
-                  <strong>
-                    {new Date(item.DTNASCIMENTO).toLocaleDateString('pt-BR')}
-                  </strong>
-                </p>
-              )}
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                disabled={processingId !== null}
+                onClick={() => handleApproveFieldApi(field)}
+                className="px-3 py-1 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-lg transition shadow-2xs cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {isProcessing ? '...' : 'APROVAR ESTE'}
+              </button>
+              <button
+                type="button"
+                disabled={processingId !== null}
+                onClick={() => handleDenyFieldApi(field)}
+                className="px-3 py-1 bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold rounded-lg transition shadow-2xs cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {isProcessing ? '...' : 'NEGAR ESTE'}
+              </button>
             </div>
           </div>
-        );
-      }
-    }
 
-    // Retorno padrão para demais campos do sistema
-    return (
-      <div
-        key={field.id || `${field.field_name}_${field.new_value}`}
-        className="p-4 bg-amber-50/60 border border-amber-200 rounded-xl space-y-3 relative shadow-2xs"
-      >
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-amber-200/80 pb-2">
-          <span className="text-xs font-bold text-amber-900 uppercase tracking-wider flex items-center gap-1.5">
-            🟠 SOLICITAÇÃO DE ALTERAÇÃO: {field.field_name}
-          </span>
-
-          <div className="flex items-center gap-2">
-            <button
-              type="button"
-              disabled={processingId !== null}
-              onClick={() => handleApproveFieldApi(field)}
-              className="px-3 py-1 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-lg transition shadow-2xs cursor-pointer disabled:opacity-50"
-            >
-              {isProcessing ? '...' : 'APROVAR'}
-            </button>
-            <button
-              type="button"
-              disabled={processingId !== null}
-              onClick={() => handleDenyFieldApi(field)}
-              className="px-3 py-1 bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold rounded-lg transition shadow-2xs cursor-pointer disabled:opacity-50"
-            >
-              {isProcessing ? '...' : 'NEGAR'}
-            </button>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs text-slate-600">
+            <p>
+              Parentesco: <strong>{item.GRAUPARENTESCODESC || item.grau_parentesco || '--'}</strong>
+            </p>
+            <p>
+              CPF: <strong className="font-mono">{formatCpf(item.CPF || item.cpf)}</strong>
+            </p>
+            {item.DTNASCIMENTO && (
+              <p>
+                Nascimento:{' '}
+                <strong>
+                  {new Date(item.DTNASCIMENTO).toLocaleDateString('pt-BR')}
+                </strong>
+              </p>
+            )}
           </div>
         </div>
+      );
+    }
+  }
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          <div className="p-3 bg-white/80 border border-slate-200 rounded-lg space-y-1">
-            <span className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider">
-              DE (TOTVS)
-            </span>
-            {renderFormattedValue(field.old_value, field.field_name)}
-          </div>
+  // 🔒 Define se a aprovação está desabilitada por processamento ou cadastro pendente
+  const isApproveDisabled = processingId !== null || hasUnregisteredAcademicData;
 
-          <div className="p-3 bg-emerald-50/80 border border-emerald-200 rounded-lg space-y-1">
-            <span className="block text-[10px] font-bold text-emerald-700 uppercase tracking-wider">
-              PARA (NOVO)
-            </span>
-            {renderFormattedValue(field.new_value, field.field_name)}
-          </div>
+  // Retorno padrão para demais campos do sistema
+  return (
+    <div
+      key={field.id || `${field.field_name}_${field.new_value}`}
+      className="p-4 bg-amber-50/60 border border-amber-200 rounded-xl space-y-3 relative shadow-2xs"
+    >
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-amber-200/80 pb-2">
+        <span className="text-xs font-bold text-amber-900 uppercase tracking-wider flex items-center gap-1.5">
+          🟠 SOLICITAÇÃO DE ALTERAÇÃO: {field.field_name}
+        </span>
+
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            disabled={isApproveDisabled}
+            onClick={() => handleApproveFieldApi(field)}
+            title={
+              hasUnregisteredAcademicData
+                ? 'Cadastre o Curso e a Entidade no TOTVS antes de aprovar.'
+                : ''
+            }
+            className={`px-3 py-1 text-xs font-bold rounded-lg transition shadow-2xs ${
+              isApproveDisabled
+                ? 'bg-slate-300 text-slate-500 cursor-not-allowed border border-slate-300'
+                : 'bg-emerald-600 hover:bg-emerald-700 text-white cursor-pointer active:scale-95'
+            }`}
+          >
+            {isProcessing ? '...' : 'APROVAR'}
+          </button>
+          <button
+            type="button"
+            disabled={processingId !== null}
+            onClick={() => handleDenyFieldApi(field)}
+            className="px-3 py-1 bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold rounded-lg transition shadow-2xs cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {isProcessing ? '...' : 'NEGAR'}
+          </button>
         </div>
       </div>
-    );
-  };
+
+      {/* Alerta indicando a necessidade de cadastro no TOTVS antes da aprovação */}
+      {hasUnregisteredAcademicData && (
+        <div className="px-3 py-2 bg-amber-100/80 border border-amber-300/80 rounded-lg text-amber-900 text-[11px] font-medium flex items-center gap-2">
+          <span>⚠️</span>
+          <span>
+            <strong>Aprovação bloqueada:</strong> Realize o cadastro do Curso e/ou Entidade pendentes acima no TOTVS para habilitar o botão de aprovação.
+          </span>
+        </div>
+      )}
+
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <div className="p-3 bg-white/80 border border-slate-200 rounded-lg space-y-1">
+          <span className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+            DE (TOTVS)
+          </span>
+          {renderFormattedValue(field.old_value, field.field_name, field.id)}
+        </div>
+
+        <div className="p-3 bg-emerald-50/80 border border-emerald-200 rounded-lg space-y-1">
+          <span className="block text-[10px] font-bold text-emerald-700 uppercase tracking-wider">
+            PARA (NOVO)
+          </span>
+          {renderFormattedValue(field.new_value, field.field_name, field.id)}
+        </div>
+      </div>
+    </div>
+  );
+};
 
   const renderAttachmentChips = (attachments: Attachment[], label = 'Anexos da Seção') => {
     if (!attachments || attachments.length === 0) return null;

@@ -373,6 +373,8 @@ export default function EmployeeEditData({
     fetchAcademicOptions();
   }, []);
 
+const OUTRO_SENTINEL = '__OUTRO__';
+
 const handleFormacaoSelectChange = (
   index: number,
   type: 'ENTIDADE' | 'CURSO' | 'GRAU',
@@ -385,20 +387,40 @@ const handleFormacaoSelectChange = (
     if (updated[index]?.isExisting) return prev;
 
     if (type === 'ENTIDADE') {
+      if (selectedId === OUTRO_SENTINEL) {
+        updated[index] = {
+          ...updated[index],
+          isOutroEntidade: true,
+          CODENTIDADE: '',
+          ENTIDADE_NOMEFANTASIA: '',
+        };
+        return updated;
+      }
       const item = academicOptions?.entidades?.find(
         (e) => String(e.CODENTIDADE) === selectedId
       );
       updated[index] = {
         ...updated[index],
+        isOutroEntidade: false,
         CODENTIDADE: item ? item.CODENTIDADE : '',
         ENTIDADE_NOMEFANTASIA: item ? item.NOMEFANTASIA : '',
       };
     } else if (type === 'CURSO') {
+      if (selectedId === OUTRO_SENTINEL) {
+        updated[index] = {
+          ...updated[index],
+          isOutroCurso: true,
+          CODCURSO: '',
+          CURSO_NOME: '',
+        };
+        return updated;
+      }
       const item = academicOptions?.cursos?.find(
         (c) => String(c.CODCURSO) === selectedId
       );
       updated[index] = {
         ...updated[index],
+        isOutroCurso: false,
         CODCURSO: item ? item.CODCURSO : '',
         CURSO_NOME: item ? item.CURSO_NOME : '',
       };
@@ -413,6 +435,25 @@ const handleFormacaoSelectChange = (
       };
     }
 
+    return updated;
+  });
+};
+
+/** Atualiza o texto livre de Curso ou Instituição quando "Outro" foi selecionado */
+const handleFormacaoOutroTextChange = (
+  index: number,
+  type: 'CURSO' | 'ENTIDADE',
+  value: string
+) => {
+  setFormacaoList((prev) => {
+    const updated = [...prev];
+    if (updated[index]?.isExisting) return prev;
+
+    if (type === 'CURSO') {
+      updated[index] = { ...updated[index], CURSO_NOME: value };
+    } else {
+      updated[index] = { ...updated[index], ENTIDADE_NOMEFANTASIA: value };
+    }
     return updated;
   });
 };
@@ -432,6 +473,8 @@ const handleFormacaoSelectChange = (
         DATATERMINO: '',
         SITUACAO: 'Cursando',
         isExisting: false,
+        isOutroCurso: false,
+        isOutroEntidade: false,
       },
     ]);
   };
@@ -667,15 +710,25 @@ const handleFormacaoSelectChange = (
 
     const modifiedFieldNames = modifiedFields.map((m) => m.field);
 
-    // Validação dos Cursos da API
+    // Validação dos Cursos da API (aceita "Outro" com texto livre como alternativa ao código)
     if (modifiedFieldNames.includes('FORMACAO_ACADEMICA')) {
-      const invalidCourses = formacaoList.filter(
-        (c) => !c.isExisting && (!c.CODENTIDADE || !c.CODCURSO || !c.CODGRAU)
-      );
+      const invalidCourses = formacaoList.filter((c) => {
+        if (c.isExisting) return false;
+
+        const cursoInvalido = c.isOutroCurso
+          ? !String(c.CURSO_NOME || '').trim()
+          : !c.CODCURSO;
+        const entidadeInvalida = c.isOutroEntidade
+          ? !String(c.ENTIDADE_NOMEFANTASIA || '').trim()
+          : !c.CODENTIDADE;
+        const grauInvalido = !c.CODGRAU;
+
+        return cursoInvalido || entidadeInvalida || grauInvalido;
+      });
 
       if (invalidCourses.length > 0) {
         alert(
-          'Por favor, selecione a Instituição, o Curso e o Grau de Instrução a partir das opções da lista para todos os novos cursos.'
+          'Por favor, preencha o Curso e a Instituição (selecionando da lista ou digitando em "Outro") e o Grau de Instrução para todos os novos cursos.'
         );
         return;
       }
@@ -1313,7 +1366,24 @@ const renderModalItem = (
       <label className="block text-xs text-slate-600 font-medium mb-1">
         Nome do Curso <span className="text-rose-600">*</span>
       </label>
-      {academicOptions?.cursos && academicOptions.cursos.length > 0 ? (
+      {curso.isOutroCurso ? (
+        <div className="space-y-1">
+          <input
+            type="text"
+            value={curso.CURSO_NOME || ''}
+            onChange={(e) => handleFormacaoOutroTextChange(index, 'CURSO', e.target.value)}
+            placeholder="Digite o nome do curso"
+            className="w-full bg-white border border-slate-300 rounded-lg p-2 text-xs text-slate-800 focus:border-cyan-600 outline-none transition"
+          />
+          <button
+            type="button"
+            onClick={() => handleFormacaoSelectChange(index, 'CURSO', '')}
+            className="text-[10px] text-cyan-700 hover:text-cyan-800 font-medium cursor-pointer"
+          >
+            ← Selecionar da lista
+          </button>
+        </div>
+      ) : academicOptions?.cursos && academicOptions.cursos.length > 0 ? (
         <select
           value={String(curso.CODCURSO ?? '')}
           onChange={(e) => handleFormacaoSelectChange(index, 'CURSO', e.target.value)}
@@ -1325,6 +1395,7 @@ const renderModalItem = (
               {c.CURSO_NOME}
             </option>
           ))}
+          <option value="__OUTRO__">✏️ Outro (não está na lista)</option>
         </select>
       ) : (
         <span>Erro ao carregar opções de cursos da base da totvs</span>
@@ -1336,7 +1407,24 @@ const renderModalItem = (
       <label className="block text-xs text-slate-600 font-medium mb-1">
         Instituição / Entidade <span className="text-rose-600">*</span>
       </label>
-      {academicOptions?.entidades && academicOptions.entidades.length > 0 ? (
+      {curso.isOutroEntidade ? (
+        <div className="space-y-1">
+          <input
+            type="text"
+            value={curso.ENTIDADE_NOMEFANTASIA || ''}
+            onChange={(e) => handleFormacaoOutroTextChange(index, 'ENTIDADE', e.target.value)}
+            placeholder="Digite o nome da instituição"
+            className="w-full bg-white border border-slate-300 rounded-lg p-2 text-xs text-slate-800 focus:border-cyan-600 outline-none transition"
+          />
+          <button
+            type="button"
+            onClick={() => handleFormacaoSelectChange(index, 'ENTIDADE', '')}
+            className="text-[10px] text-cyan-700 hover:text-cyan-800 font-medium cursor-pointer"
+          >
+            ← Selecionar da lista
+          </button>
+        </div>
+      ) : academicOptions?.entidades && academicOptions.entidades.length > 0 ? (
         <select
           value={String(curso.CODENTIDADE ?? '')}
           onChange={(e) => handleFormacaoSelectChange(index, 'ENTIDADE', e.target.value)}
@@ -1348,6 +1436,7 @@ const renderModalItem = (
               {ent.NOMEFANTASIA}
             </option>
           ))}
+          <option value="__OUTRO__">✏️ Outra (não está na lista)</option>
         </select>
       ) : (
         <span>Erro ao carregar opções de cursos da base da totvs</span>
@@ -1591,7 +1680,7 @@ const renderModalItem = (
     <div className="pt-3 border-t border-slate-200 flex items-center justify-between">
       <label
         className={`inline-flex items-center gap-2 px-3 py-1.5 border rounded-lg text-xs font-medium shadow-sm transition ${
-          editingSections.endereco
+          editingSections.endereco && enderecoChanged
             ? 'cursor-pointer bg-white hover:bg-slate-100 border-slate-300 text-cyan-700'
             : 'cursor-not-allowed bg-slate-100 border-slate-200 text-slate-400 opacity-60 pointer-events-none'
         }`}
@@ -1600,7 +1689,7 @@ const renderModalItem = (
         <input
           type="file"
           multiple
-          disabled={!editingSections.endereco}
+          disabled={!(editingSections.endereco && enderecoChanged)}
           className="hidden"
           onChange={(e) => handleAddFiles(e, 'endereco')}
         />

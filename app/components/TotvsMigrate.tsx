@@ -21,6 +21,24 @@ interface TotvsMigrateProps {
   onMigrateSuccess?: () => void;
 }
 
+const ADDRESS_KEY_MAP: Record<string, string> = {
+  RUA: 'street',
+  NUMERO: 'number',
+  COMPLEMENTO: 'complement',
+  BAIRRO: 'district',
+  CEP: 'cep',
+  CIDADE: 'city',
+  ESTADO: 'state',
+  PAIS: 'country',
+  STREET: 'street',
+  NUMBER: 'number',
+  COMPLEMENT: 'complement',
+  DISTRICT: 'district',
+  CITY: 'city',
+  STATE: 'state',
+  COUNTRY: 'country',
+};
+
 function parseJsonSafe(val?: string | null) {
   if (!val) return null;
   try {
@@ -32,7 +50,7 @@ function parseJsonSafe(val?: string | null) {
   return null;
 }
 
-function mapFieldToSectionAndPayload(field: FieldDetail): { section: string; payload: any } {
+function mapFieldToSectionAndPayload(field: FieldDetail): { section: string; payload: Record<string, any> } {
   const nameUpper = (field.field_name || '').toUpperCase().trim();
   const parsedNew = parseJsonSafe(field.new_value);
 
@@ -42,13 +60,21 @@ function mapFieldToSectionAndPayload(field: FieldDetail): { section: string; pay
   if (nameUpper.includes('FORMACAO') || nameUpper.includes('ACADEMICA')) {
     return { section: 'formacao-academica', payload: parsedNew || { CURSO_NOME: field.new_value } };
   }
+  
+  // Seção de Endereço: inclui tanto a chave Swagger (ex: "street") quanto a original ("RUA")
   if (
     nameUpper.includes('ENDERECO') ||
     nameUpper.includes('ENDEREÇO') ||
     ['RUA', 'NUMERO', 'COMPLEMENTO', 'BAIRRO', 'CIDADE', 'ESTADO', 'CEP', 'PAIS'].includes(nameUpper)
   ) {
-    return { section: 'endereco', payload: parsedNew || { [field.field_name]: field.new_value } };
+    const swaggerKey = ADDRESS_KEY_MAP[nameUpper] || field.field_name;
+    const addressPayload = parsedNew || {
+      [swaggerKey]: field.new_value,
+      [field.field_name]: field.new_value,
+    };
+    return { section: 'endereco', payload: addressPayload };
   }
+
   if (nameUpper.includes('CONTATO') || ['TELEFONE1', 'TELEFONE2', 'EMAIL'].includes(nameUpper)) {
     return { section: 'contato', payload: parsedNew || { [field.field_name]: field.new_value } };
   }
@@ -78,7 +104,7 @@ export default function TotvsMigrate({
   const [checkingAuth, setCheckingAuth] = useState(true);
   const [isAuthorized, setIsAuthorized] = useState(false);
   const [feedback, setFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
-  
+
   useEffect(() => {
     async function checkUserPermission() {
       try {
@@ -144,39 +170,72 @@ export default function TotvsMigrate({
         }
       }
 
-      // 📌 Garante filtragem estrita apenas de campos com status de aprovação
+      // Filtra apenas os campos aprovados
       const approvedFields = rawFields.filter((f) => {
         const st = (f.status || '').toLowerCase();
         return st === 'approved' || st === 'aprovado' || rawFields.length === 1;
       });
 
-      const fieldsToProcess = approvedFields.length > 0 
-        ? approvedFields 
+      const fieldsToProcess = approvedFields.length > 0
+        ? approvedFields
         : [{ field_name: 'geral', new_value: '' }];
 
-      let processedCount = 0;
+      // 📌 Agrupa as alterações por seção para enviar campos relacionados juntos em 1 requisição
+      const groupedSections: Record<
+        string,
+        {
+          section: string;
+          requestId?: number | string;
+          fieldIds: (number | string)[];
+          fieldNames: string[];
+          payload: Record<string, any>;
+        }
+      > = {};
 
       for (const field of fieldsToProcess) {
         const { section, payload } = mapFieldToSectionAndPayload(field);
         const targetRequestId = requestId || field.change_request_id;
 
-        const response = await fetch(`/api/totvs/migrate/${section}`, {
+        if (!groupedSections[section]) {
+          groupedSections[section] = {
+            section,
+            requestId: targetRequestId,
+            fieldIds: [],
+            fieldNames: [],
+            payload: {},
+          };
+        }
+
+        if (field.id !== undefined) groupedSections[section].fieldIds.push(field.id);
+        if (field.field_name) groupedSections[section].fieldNames.push(field.field_name);
+
+        // Funde os objetos de payload da mesma seção em um único objeto unificado
+        Object.assign(groupedSections[section].payload, payload);
+      }
+
+      let processedCount = 0;
+
+      // Executa 1 chamada HTTP por SEÇÃO (ex: todos os campos de endereço de uma só vez)
+      for (const group of Object.values(groupedSections)) {
+        const response = await fetch(`/api/totvs/migrate/${group.section}`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             employeeCpf: cleanCpf,
-            requestId: targetRequestId,
-            fieldName: field.field_name,
-            payload,
+            requestId: group.requestId,
+            fieldIds: group.fieldIds,
+            fieldNames: group.fieldNames,
+            fieldName: group.fieldNames.join(', '), // compatibilidade com log do backend
+            payload: group.payload,
           }),
         });
 
         const data = await response.json();
         if (!response.ok || !data.success) {
-          throw new Error(data.error || `Falha ao migrar "${field.field_name}" para o TOTVS.`);
+          throw new Error(data.error || `Falha ao migrar seção "${group.section}" para o TOTVS.`);
         }
 
-        processedCount++;
+        processedCount += group.fieldNames.length || 1;
       }
 
       setFeedback({

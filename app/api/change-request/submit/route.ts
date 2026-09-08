@@ -239,6 +239,10 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // ⚠️ Checagem geral (mantida por compatibilidade): bloqueia só o caso de
+    // ausência total. A validação fina por seção vem logo abaixo, depois de
+    // agrupar changes e files — é ela que resolve o bug relatado (anexo sem
+    // nenhuma alteração real correspondente na mesma seção).
     if (changes.length === 0 && files.length === 0) {
       return NextResponse.json({ success: false, error: 'Nenhuma alteração real ou anexo foi enviado.' }, { status: 400 });
     }
@@ -291,6 +295,40 @@ export async function POST(request: NextRequest) {
       }
       sectionGroups.get(secKey)!.files.push({ file, category: rawCat, index: idx });
     });
+
+    // 🛑 VALIDAÇÃO POR SEÇÃO: bloqueia qualquer seção que recebeu anexo(s) mas
+    // não tem NENHUMA alteração real de campo correspondente. É isso que
+    // impede a criação de "solicitações fantasma" (só com arquivo, sem dado
+    // pra revisar) — exatamente o padrão visto nos change_requests #5, #6 e #7
+    // do seu banco, que têm anexo mas nenhuma linha em change_request_fields.
+    //
+    // 'dependentes' e a seção de formação acadêmica ficam de fora dessa regra
+    // de propósito: lá, o próprio anexo já está sempre atrelado a um item
+    // (dependente/curso) que entra em `changes` junto — então, se esse par
+    // não vier junto, o problema já é outro (payload incompleto do front-end),
+    // não um anexo "solto" por si só.
+    const sectionsExemptFromThisCheck = new Set(['dependentes', formacaoSectionKey]);
+
+    const orphanAttachmentSections = Array.from(sectionGroups.entries())
+      .filter(
+        ([sectionKey, group]) =>
+          !sectionsExemptFromThisCheck.has(sectionKey) &&
+          group.files.length > 0 &&
+          group.changes.length === 0
+      )
+      .map(([sectionKey]) => sectionKey);
+
+    if (orphanAttachmentSections.length > 0) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: `Anexo enviado sem nenhuma alteração real de dado para: ${orphanAttachmentSections.join(
+            ', '
+          )}. Edite o campo correspondente antes de anexar o comprovante.`,
+        },
+        { status: 400 }
+      );
+    }
 
     // --- Grava arquivos em disco ---
     const savedFiles: { storedFilename: string; fullPath: string; fileIndex: number }[] = [];
